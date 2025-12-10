@@ -1,0 +1,12 @@
+langchain
+langchain-core
+langchain-community
+pypdf
+pymupdf
+ipykernel
+sentence-transformers
+pinecone
+chromadb
+faiss-cpu
+langchain-groq
+python-dotenv
