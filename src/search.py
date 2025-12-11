@@ -8,28 +8,73 @@ load_dotenv()
 class RAGSearch:
     def __init__(self, persist_dir: str = "faiss_store", embedding_model: str = "all-MiniLM-L6-v2", llm_model: str = "llama-3.3-70b-versatile"):
         self.vectorstore = FaissVectorStore(persist_dir, embedding_model)
+        
         # Load or build vectorstore
         faiss_path = os.path.join(persist_dir, "faiss.index")
         meta_path = os.path.join(persist_dir, "metadata.pkl")
+        
         if not (os.path.exists(faiss_path) and os.path.exists(meta_path)):
-            from data_loader import load_all_documents
+            from src.data_loader import load_all_documents
             docs = load_all_documents("data")
             self.vectorstore.build_from_documents(docs)
         else:
             self.vectorstore.load()
+        
         groq_api_key = ""
         self.llm = ChatGroq(groq_api_key=groq_api_key, model_name=llm_model)
         print(f"[INFO] Groq LLM initialized: {llm_model}")
 
     def search_and_summarize(self, query: str, top_k: int = 5) -> str:
+        # Retrieve the top-k results from the vector store
         results = self.vectorstore.query(query, top_k=top_k)
+        
+        # If no results are returned, return a polite message
+        if not results:
+            return "Sorry, I couldn't find an answer to your question at the moment. Please try again later or refine your query."
+
+        # Get the text of the documents and prepare the context for summarization
         texts = [r["metadata"].get("text", "") for r in results if r["metadata"]]
         context = "\n\n".join(texts)
+
+        # If the context is empty after the search, return a polite response
         if not context:
-            return "No relevant documents found."
+            return "Sorry, I couldn't find any relevant information in the documents. Please try again with a different query."
+
+        # Prepare a prompt for the LLM to summarize the context
         prompt = f"""Summarize the following context for the query: '{query}'\n\nContext:\n{context}\n\nSummary:"""
+        
+        # Get the response from the language model (Groq)
         response = self.llm.invoke([prompt])
+        
         return response.content
+
+
+
+# class RAGSearch:
+#     def __init__(self, persist_dir: str = "faiss_store", embedding_model: str = "all-MiniLM-L6-v2", llm_model: str = "llama-3.3-70b-versatile"):
+#         self.vectorstore = FaissVectorStore(persist_dir, embedding_model)
+#         # Load or build vectorstore
+#         faiss_path = os.path.join(persist_dir, "faiss.index")
+#         meta_path = os.path.join(persist_dir, "metadata.pkl")
+#         if not (os.path.exists(faiss_path) and os.path.exists(meta_path)):
+#             from src.data_loader import load_all_documents
+#             docs = load_all_documents("data")
+#             self.vectorstore.build_from_documents(docs)
+#         else:
+#             self.vectorstore.load()
+#         groq_api_key = ""
+#         self.llm = ChatGroq(groq_api_key=groq_api_key, model_name=llm_model)
+#         print(f"[INFO] Groq LLM initialized: {llm_model}")
+
+#     def search_and_summarize(self, query: str, top_k: int = 5) -> str:
+#         results = self.vectorstore.query(query, top_k=top_k)
+#         texts = [r["metadata"].get("text", "") for r in results if r["metadata"]]
+#         context = "\n\n".join(texts)
+#         if not context:
+#             return "No relevant documents found."
+#         prompt = f"""Summarize the following context for the query: '{query}'\n\nContext:\n{context}\n\nSummary:"""
+#         response = self.llm.invoke([prompt])
+#         return response.content
 
 # Example usage
 if __name__ == "__main__":
